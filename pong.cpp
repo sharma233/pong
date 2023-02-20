@@ -8,8 +8,9 @@ const int SCREEN_HEIGHT = 480;
 
 //starts up SDL and creates window
 bool init();
-
 void close();
+
+bool checkCollision(SDL_Rect a, SDL_Rect b);
 
 SDL_Window* gWindow = NULL;
 SDL_Renderer* gRenderer = NULL;
@@ -28,6 +29,8 @@ public:
 	void move();
 	void render();
 
+	SDL_Rect mCollider;
+
 private:
 	double mPosX, mPosY;
 	//no x vel since we can't move on the x axis
@@ -38,6 +41,9 @@ Paddle::Paddle(bool player) {
 
 	mPosY = SCREEN_HEIGHT/2;
 	mVelY = 0;
+	mCollider.w = PADDLE_WIDTH;
+	mCollider.h = PADDLE_HEIGHT;
+
 	if (player) {
 		mPosX = 0;
 	}
@@ -67,6 +73,8 @@ void Paddle::move() {
 	if (mPosY < 0 || mPosY + PADDLE_HEIGHT > SCREEN_HEIGHT) {
 		mPosY -= mVelY;
 	}
+	mCollider.y = mPosY;
+	mCollider.x = mPosX;
 }
 
 void Paddle::render() {
@@ -85,12 +93,13 @@ public:
 
 	Ball();
 
-	void move();
+	void move(SDL_Rect& player_paddle_collider, SDL_Rect& opp_paddle_collider);
 	void render();
 
 private:
 	double mPosX, mPosY;
 	double mVelY, mVelX;
+	SDL_Rect mCollider;
 };
 
 Ball::Ball() {
@@ -98,21 +107,33 @@ Ball::Ball() {
 	mPosX = SCREEN_WIDTH / 2;
 	mVelY = -BALL_VEL;
 	mVelX = -BALL_VEL;
+	mCollider.w = BALL_WIDTH;
+	mCollider.h = BALL_HEIGHT;
 }
 
 
-void Ball::move() {
+void Ball::move(SDL_Rect& player_paddle_collider, SDL_Rect& opp_paddle_collider) {
 	mPosX += mVelX;
 	if (mPosX < 0 || mPosX + BALL_WIDTH > SCREEN_WIDTH) {
 		mPosX -= mVelX;
 		mVelX = -mVelX;
 	}
+	mCollider.x = mPosX;
 
 	mPosY += mVelY;
 	if (mPosY < 0 || mPosY + BALL_HEIGHT > SCREEN_HEIGHT) {
 		mPosY -= mVelY;
 		mVelY = -mVelY;
 	}
+
+	if (checkCollision(mCollider, player_paddle_collider) || checkCollision(mCollider, opp_paddle_collider)) {
+		mPosY -= mVelY;
+		mPosX -= mVelX;
+		//mVelY = -mVelY;
+		mVelX = -mVelX;
+	}
+	mCollider.x = mPosX;
+	mCollider.y = mPosY;
 }
 
 void Ball::render() {
@@ -156,6 +177,41 @@ void close() {
 	SDL_Quit();
 }
 
+bool checkCollision(SDL_Rect a, SDL_Rect b) {
+	int leftA, leftB;
+	int rightA, rightB;
+	int topA, topB;
+	int bottomA, bottomB;
+
+	leftA = a.x;
+	rightA = a.x + a.w;
+	topA = a.y;
+	bottomA = a.y + a.h;
+
+	leftB = b.x;
+	rightB = b.x + b.w;
+	topB = b.y;
+	bottomB = b.y + b.h;
+
+	if (bottomA <= topB) {
+		return false;
+	}
+
+	if (topA >= bottomB) {
+		return false;
+	}
+
+	if (rightA <= leftB) {
+		return false;
+	}
+
+	if (leftA >= rightB) {
+		return false;
+	}
+
+	return true;
+}
+
 int main(int argc, char* args[]) {
 	if (!init()) {
 		printf("Failed to initialize!\n");
@@ -177,7 +233,8 @@ int main(int argc, char* args[]) {
 			}
 
 			player_paddle.move();
-			ball.move();
+			opp_paddle.move();
+			ball.move(player_paddle.mCollider, opp_paddle.mCollider);
 
 			//clear screen
 			SDL_SetRenderDrawColor(gRenderer, 0x00, 0x00, 0x00, 0x00);
